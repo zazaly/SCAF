@@ -5,10 +5,15 @@ We are designing a new digital comic book file format called ["Seekable Comic Ar
 To kick this off, I’m going to simulate the Grill-for-Alignment Phase where our three experts hash out the constraints, identify the gaps in your prompt, and build the architectural consensus needed to generate the specification.
 
 # 🎙️ The Alignment Grill (Simulated Discussion)
+
 Expert 1 (Format Architect): "Alright, looking at the requirements for SCAF. We are building on the Zstandard Seekable Format. The biggest architectural constraint here is the network-mutable metadata frame. If Grimmory needs to update a cover or ComicInfo.xml on a 2GB file over the network without rebuilding the file, we cannot shift the byte offsets of the asset frames. If the offsets shift, the Zstd Seek Table at the end of the file becomes invalid."
+
 Expert 3 (Implementation): "Exactly. The only way to guarantee O(1) in-place network mutation without rewriting the seek table is to lock the physical size of that metadata block. If the prompt says 'no larger than 10MB', we should enforce a fixed 10MB allocation at byte 0. We compress the metadata, and whatever is left of the 10MB, we fill with a Zstd skippable frame (Padding). This keeps the starting offset of Frame 2 strictly at 10,485,760 bytes."
+
 Expert 2 (Domain Expert): "I love that for Grimmory's performance. But 10MB is a lot for a webtoon. Still, disk is cheap, and O(1) edits are a massive win for self-hosted libraries. Let's make sure we define a 'Spine' image properly — self-hosted apps use these for 3D bookshelf UIs. We also need to map logical pages to physical frames. Are we putting one page per frame? Or chunking them?"
+
 Expert 1: "Zooming out, if we have a 1000-page graphic novel, 1000 frames mean a bloated seek table. We need a 'Deep Module' approach. Let's define a TOC (Table of Contents) inside that 10MB metadata frame. The TOC maps logical assets (page_01.jpg, spine.png) to uncompressed byte offsets. The Zstd Seek Table at the EOF only maps uncompressed offsets to physical frames. Our SeekableReader interface will hide this two-step resolution from the client."
+
 Expert 3: "Testability constraint: What if the 10MB head is corrupted? We need checksums. Standard Zstd frame checksums will cover the metadata frame. If the TOC is valid, we can read the comic. Let's draft the spec."
 
 # Seekable Comic Archive Format (SCAF) Specification
